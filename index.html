@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Real-Time Hybrid Object Tracker with Trajectory & Data Collection</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="status-dot pulsing"></div>
+        <div>
+          <h1>Real-Time Hybrid Object Tracker</h1>
+          <p class="subtitle">Trajectory Vector Tracking & Telemetry Collection</p>
+        </div>
+        <span class="badge dept-badge">SJCIT • Dept. of ISE • Group 11</span>
+      </div>
+      <div class="header-metrics">
+        <div class="metric-card">
+          <span class="metric-label">STREAM FPS</span>
+          <span class="metric-val" id="fps-val">0.0</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">ACTIVE TRACKER</span>
+          <span class="metric-val highlight" id="tracker-val">NONE</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">PLAYBACK</span>
+          <span class="status-pill status-stable" id="playback-pill">PLAYING</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">OBJECT CLASS</span>
+          <span class="status-pill status-purple" id="class-pill">NONE</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace Grid -->
+    <main class="workspace-grid">
+      <!-- Left Column: Video, Timeline, Toolbar, Movement Graph, Data Table -->
+      <section class="left-section">
+        <!-- Video Screen Canvas -->
+        <div class="canvas-wrapper" id="canvas-wrapper">
+          <img id="video-stream" alt="Video stream offline" />
+          <canvas id="overlay-canvas" width="640" height="360"></canvas>
+          <div class="roi-hint" id="roi-hint">Click any detected candidate or drag across video to set ROI</div>
+
+          <!-- End of Video Completion Banner -->
+          <div class="video-finished-banner" id="video-finished-banner" style="display: none;">
+            <div class="banner-content">
+              <h3>🏁 Video Playback Finished</h3>
+              <p>Tracking has ended. All trajectory points and telemetry are preserved.</p>
+              <div class="banner-actions">
+                <button class="btn btn-reset" id="banner-btn-reset">🔄 Reset & Replay</button>
+                <button class="btn btn-export" id="banner-btn-export">📥 Download CSV Dataset</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Video Timeline Progress Bar -->
+        <div class="timeline-bar-container" id="timeline-bar-container">
+          <div class="timeline-fill" id="timeline-fill" style="width: 0%;"></div>
+          <span class="timeline-text" id="timeline-text">Frame: 0 / 0 (0%)</span>
+        </div>
+
+        <!-- Playback Control Toolbar -->
+        <!-- Playback Control Toolbar -->
+        <div class="playback-toolbar">
+          <div class="toolbar-left">
+            <button class="btn btn-play" id="btn-play">▶ PLAY</button>
+            <button class="btn btn-pause" id="btn-pause">⏸ PAUSE</button>
+            <button class="btn btn-reset" id="btn-reset">🔄 RESET</button>
+            <button class="btn btn-quick" id="btn-quick-target">🎯 Quick Target</button>
+            
+            <div class="speed-control">
+              <label for="speed-select">Speed:</label>
+              <select id="speed-select" class="speed-select">
+                <option value="0.5">0.5x</option>
+                <option value="1.0" selected>1.0x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2.0">2.0x</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="toolbar-right">
+            <button class="btn btn-source" id="btn-webcam">📹 Live Webcam</button>
+            <label class="btn btn-source upload-label">
+              📁 Upload Video
+              <input type="file" id="video-upload" accept="video/mp4,video/avi" hidden />
+            </label>
+            <button class="btn btn-export" id="btn-export-csv">📥 Export CSV</button>
+            <button class="btn btn-export" id="btn-export-json">Export JSON</button>
+          </div>
+        </div>
+
+        <!-- Real-Time Movement Graph Card -->
+        <div class="card graph-card">
+          <div class="graph-header-row">
+            <h3>📈 Real-Time Movement Graph</h3>
+            <div class="graph-toggle-group">
+              <button class="graph-tab active" id="tab-displacement">Displacement (px)</button>
+              <button class="graph-tab" id="tab-speed">Speed (px/s)</button>
+            </div>
+          </div>
+          <div class="graph-container">
+            <canvas id="movement-graph-canvas" width="600" height="150"></canvas>
+          </div>
+        </div>
+
+        <!-- Real-Time Data Collection Table -->
+        <div class="card data-table-card">
+          <div class="table-header-row">
+            <h3>📊 Real-Time Data Collection Table (Trajectory & Movement History)</h3>
+            <span class="records-count" id="records-count">0 records</span>
+          </div>
+          <div class="table-container">
+            <table class="telemetry-table">
+              <thead>
+                <tr>
+                  <th>Frame #</th>
+                  <th>Object Name</th>
+                  <th>Origin (From)</th>
+                  <th>Current (To)</th>
+                  <th>Displacement</th>
+                  <th>Speed</th>
+                  <th>Direction</th>
+                  <th>Tracker</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="telemetry-table-body">
+                <tr><td colspan="9" class="empty-state">No tracking data collected yet. Select a target above.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Vector Coordinates, Configuration & Logs -->
+      <aside class="right-section">
+        <!-- Object Identification & Movement Vector Card -->
+        <div class="card vector-card">
+          <h3>🎯 Object Identification & Movement Vector</h3>
+          
+          <div class="target-name-banner">
+            <span>Tracking Target:</span>
+            <strong id="target-name-display">Unselected</strong>
+          </div>
+
+          <div class="vector-route-box">
+            <div class="route-node">
+              <span class="route-tag origin-tag">ORIGIN (FROM)</span>
+              <strong id="start-coord-val">( - , - )</strong>
+            </div>
+            <div class="route-arrow">➔</div>
+            <div class="route-node">
+              <span class="route-tag current-tag">CURRENT (TO)</span>
+              <strong id="curr-coord-val">( - , - )</strong>
+            </div>
+          </div>
+
+          <div class="vector-stats-grid">
+            <div class="vstat-item">
+              <span class="vstat-lbl">Net Displacement</span>
+              <strong class="vstat-val" id="disp-val">0.0 px</strong>
+            </div>
+            <div class="vstat-item">
+              <span class="vstat-lbl">Path Distance</span>
+              <strong class="vstat-val" id="dist-val">0.0 px</strong>
+            </div>
+            <div class="vstat-item">
+              <span class="vstat-lbl">Velocity / Speed</span>
+              <strong class="vstat-val highlight-amber" id="speed-val">0.0 px/s</strong>
+            </div>
+            <div class="vstat-item">
+              <span class="vstat-lbl">Heading Direction</span>
+              <strong class="vstat-val highlight-cyan" id="dir-val">Stationary</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Algorithm Configuration Card -->
+        <div class="card">
+          <h3>⚙️ Algorithm Configuration</h3>
+          <div class="form-group">
+            <label for="detection-algo">Object Detection Model (Module 3)</label>
+            <select id="detection-algo" class="form-select">
+              <option value="yolo">YOLOv8 (Multi-Class Deep Learning)</option>
+              <option value="haar">Haar Cascade (Face & Silhouette)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="tracking-mode">Tracking Engine Mode (Module 5)</label>
+            <select id="tracking-mode" class="form-select">
+              <option value="HYBRID" selected>Hybrid Auto-Switch (KCF Speed + CSRT Robustness)</option>
+              <option value="KCF_ONLY">KCF Only (High FPS)</option>
+              <option value="CSRT_ONLY">CSRT Only (Occlusion Resistant)</option>
+            </select>
+          </div>
+          <div class="toggle-row">
+            <span>Auto Re-detection Recovery (Module 6)</span>
+            <span class="badge-active">ACTIVE</span>
+          </div>
+        </div>
+
+        <!-- Activity & Recovery Logs Card -->
+        <div class="card logs-card">
+          <h3>📜 Activity & Recovery Logs (Module 6)</h3>
+          <div class="log-stream" id="log-stream">
+            <div class="log-entry system-msg">Connecting to tracking engine WebSocket...</div>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="app.js?v=2"></script>
+</body>
+</html>
