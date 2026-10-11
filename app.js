@@ -25,6 +25,7 @@ const dispVal = document.getElementById("disp-val");
 const distVal = document.getElementById("dist-val");
 const speedVal = document.getElementById("speed-val");
 const dirVal = document.getElementById("dir-val");
+const locationVal = document.getElementById("location-val");
 
 // Timeline & Finished Banner
 const timelineFill = document.getElementById("timeline-fill");
@@ -103,6 +104,12 @@ function initWebSocket() {
     distVal.innerText = `${t.cumulative_dist_px} px`;
     speedVal.innerText = `${t.speed_px_s} px/s`;
     dirVal.innerText = `${t.direction} (${t.angle_deg}°)`;
+    const location = t.location || { latitude: null, longitude: null };
+    if (location.latitude !== null && location.longitude !== null) {
+      locationVal.innerText = `Lat ${location.latitude}, Lon ${location.longitude}`;
+    } else {
+      locationVal.innerText = "N/A";
+    }
 
     // Rebuild the graph from backend telemetry, including the final video frame.
     const telemetryRows = Array.isArray(t.recent_rows) ? t.recent_rows : [];

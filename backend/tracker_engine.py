@@ -81,6 +81,7 @@ class HybridTrackingEngine:
         self.current_speed = 0.0
         self.heading_direction = "Stationary"
         self.heading_angle_deg = 0.0
+        self.location = {"latitude": None, "longitude": None}
 
         self.target_hist = None
         self.consecutive_failures = 0
@@ -132,6 +133,7 @@ class HybridTrackingEngine:
             self.start_center = (cx, cy)
             self.current_center = (cx, cy)
             self.previous_center = (cx, cy)
+            self.location = self._compute_geo_location(self.current_center)
 
             self.trajectory.clear()
             self.trajectory.append((cx, cy, time.time()))
@@ -157,6 +159,18 @@ class HybridTrackingEngine:
             self._log_event(f"Error initializing tracker: {str(e)}")
             print("Tracker init error:", e)
             return False
+
+    def _compute_geo_location(self, center: Optional[Tuple[int, int]] = None) -> Dict[str, Optional[float]]:
+        if center is None:
+            center = self.current_center or self.start_center
+        if center is None:
+            return {"latitude": None, "longitude": None}
+
+        x, y = center
+        return {
+            "latitude": round(float(y), 2),
+            "longitude": round(float(x), 2)
+        }
 
     def _compute_movement_vector(self, now: float):
         if self.start_center is None or self.current_center is None:
@@ -242,6 +256,7 @@ class HybridTrackingEngine:
                 cx = int(x + w / 2.0)
                 cy = int(y + h / 2.0)
                 self.current_center = (cx, cy)
+                self.location = self._compute_geo_location(self.current_center)
                 self.trajectory.append((cx, cy, t0))
 
                 self._compute_movement_vector(t0)
@@ -335,6 +350,7 @@ class HybridTrackingEngine:
         x0, y0 = self.start_center if self.start_center else (0, 0)
         xt, yt = self.current_center if self.current_center else (0, 0)
 
+        location = self._compute_geo_location()
         row = {
             "frame_id": self.frame_index,
             "timestamp": time.strftime("%H:%M:%S"),
@@ -342,6 +358,9 @@ class HybridTrackingEngine:
             "object_class": self.target_class,
             "start_point": f"({x0}, {y0})",
             "current_point": f"({xt}, {yt})",
+            "latitude": location["latitude"],
+            "longitude": location["longitude"],
+            "location": location,
             "displacement_px": self.net_displacement,
             "cumulative_dist_px": self.cumulative_distance,
             "speed_px_s": self.current_speed,
@@ -360,6 +379,7 @@ class HybridTrackingEngine:
         self.fps = round(0.85 * self.fps + 0.15 * instant, 1)
 
     def get_telemetry(self) -> Dict[str, Any]:
+        location = self._compute_geo_location()
         return {
             "fps": self.fps,
             "is_paused": self.is_paused,
@@ -372,6 +392,9 @@ class HybridTrackingEngine:
             "target_bbox": self.target_bbox,
             "start_point": list(self.start_center) if self.start_center else None,
             "current_point": list(self.current_center) if self.current_center else None,
+            "latitude": location["latitude"],
+            "longitude": location["longitude"],
+            "location": location,
             "displacement_px": self.net_displacement,
             "cumulative_dist_px": self.cumulative_distance,
             "speed_px_s": self.current_speed,
@@ -385,9 +408,9 @@ class HybridTrackingEngine:
     def export_csv(self) -> str:
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["Frame", "Timestamp", "Object_Name", "Class", "Start_Point", "Current_Point", "Displacement_px", "Cumulative_Dist_px", "Speed_px_s", "Direction", "Angle_deg", "Tracker", "Status"])
+        writer.writerow(["Frame", "Timestamp", "Object_Name", "Class", "Start_Point", "Current_Point", "Latitude", "Longitude", "Displacement_px", "Cumulative_Dist_px", "Speed_px_s", "Direction", "Angle_deg", "Tracker", "Status"])
         for r in self.telemetry_dataset:
-            writer.writerow([r["frame_id"], r["timestamp"], r["object_name"], r["object_class"], r["start_point"], r["current_point"], r["displacement_px"], r["cumulative_dist_px"], r["speed_px_s"], r["direction"], r["angle_deg"], r["active_tracker"], r["status"]])
+            writer.writerow([r["frame_id"], r["timestamp"], r["object_name"], r["object_class"], r["start_point"], r["current_point"], r["latitude"], r["longitude"], r["displacement_px"], r["cumulative_dist_px"], r["speed_px_s"], r["direction"], r["angle_deg"], r["active_tracker"], r["status"]])
         return output.getvalue()
 
     def reset(self):
@@ -402,6 +425,7 @@ class HybridTrackingEngine:
         self.cumulative_distance = 0.0
         self.current_speed = 0.0
         self.heading_direction = "Stationary"
+        self.location = {"latitude": None, "longitude": None}
         self.active_tracker_type = "NONE"
         self.tracking_status = "IDLE"
         self.target_label = "Unselected"
